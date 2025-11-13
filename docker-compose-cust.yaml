@@ -1,0 +1,68 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:13
+    container_name: taiga-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: taiga123456
+      POSTGRES_DB: taiga
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - coolify
+
+  redis:
+    image: redis:7-alpine
+    container_name: taiga-redis
+    restart: unless-stopped
+    networks:
+      - coolify
+
+  taiga-back:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-back
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - TAIGA_SECRET_KEY=your-very-secret-key-change-this-123
+      - TAIGA_SITES_SCHEME=https
+      - TAIGA_SITES_DOMAIN=work.techsed.com
+      - POSTGRES_USER=taiga
+      - POSTGRES_PASSWORD=taiga123456
+      - POSTGRES_DB=taiga
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+    volumes:
+      - taiga_media_data:/taiga/media
+      - taiga_static_data:/taiga/static
+    networks:
+      - coolify
+
+  taiga-front:
+    image: taigaio/taiga-front:latest
+    container_name: taiga-front
+    restart: unless-stopped
+    depends_on:
+      - taiga-back
+    environment:
+      - TAIGA_SECRET_KEY=your-very-secret-key-change-this-123
+      - TAIGA_SITES_SCHEME=https
+      - TAIGA_SITES_DOMAIN=work.techsed.com
+      - TAIGA_HOST=taiga-back
+    networks:
+      - coolify
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data:
+  taiga_media_data:
+  taiga_static_data:
+
+networks:
+  coolify:
+    external: true
