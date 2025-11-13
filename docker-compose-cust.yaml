@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: taiga
-      POSTGRES_PASSWORD: strong-password-change-this-123
+      POSTGRES_PASSWORD: taiga123456
       POSTGRES_DB: taiga
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -60,7 +60,7 @@ services:
     depends_on:
       - taiga-back
     environment:
-      - TAIGA_SECRET_KEY=your-very-long-secret-key-minimum-50-chars-change-this-now
+      - TAIGA_SECRET_KEY=k2jptq=mpxa@*h10)*0g5xeo7ikc#&^pqfn7$nz8h5%4493v$i
       - TAIGA_SITES_SCHEME=https
       - TAIGA_SITES_DOMAIN=work.techsed.com
       - TAIGA_HOST=taiga-back
