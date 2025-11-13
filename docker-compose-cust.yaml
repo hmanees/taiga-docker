@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: taiga
-      POSTGRES_PASSWORD: taiga123456
+      POSTGRES_PASSWORD: strong-password-change-this-123
       POSTGRES_DB: taiga
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -17,6 +17,9 @@ services:
     image: redis:7-alpine
     container_name: taiga-redis
     restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     networks:
       - coolify
 
@@ -28,19 +31,27 @@ services:
       - postgres
       - redis
     environment:
-      - TAIGA_SECRET_KEY=your-very-secret-key-change-this-123
+      - TAIGA_SECRET_KEY=your-very-long-secret-key-minimum-50-chars-change-this-now
       - TAIGA_SITES_SCHEME=https
       - TAIGA_SITES_DOMAIN=work.techsed.com
       - POSTGRES_USER=taiga
-      - POSTGRES_PASSWORD=taiga123456
+      - POSTGRES_PASSWORD=strong-password-change-this-123
       - POSTGRES_DB=taiga
       - POSTGRES_HOST=postgres
       - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - taiga_media_data:/taiga/media
       - taiga_static_data:/taiga/static
     networks:
       - coolify
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   taiga-front:
     image: taigaio/taiga-front:latest
@@ -49,7 +60,7 @@ services:
     depends_on:
       - taiga-back
     environment:
-      - TAIGA_SECRET_KEY=your-very-secret-key-change-this-123
+      - TAIGA_SECRET_KEY=your-very-long-secret-key-minimum-50-chars-change-this-now
       - TAIGA_SITES_SCHEME=https
       - TAIGA_SITES_DOMAIN=work.techsed.com
       - TAIGA_HOST=taiga-back
@@ -57,9 +68,15 @@ services:
       - coolify
     ports:
       - "3000:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:
+  redis_data:
   taiga_media_data:
   taiga_static_data:
 
