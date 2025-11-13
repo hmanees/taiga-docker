@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: taiga
-      POSTGRES_PASSWORD: taiga123456
+      POSTGRES_PASSWORD: taiga123
       POSTGRES_DB: taiga
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -35,7 +35,7 @@ services:
       - TAIGA_SITES_SCHEME=https
       - TAIGA_SITES_DOMAIN=work.techsed.com
       - POSTGRES_USER=taiga
-      - POSTGRES_PASSWORD=strong-password-change-this-123
+      - POSTGRES_PASSWORD=taiga123
       - POSTGRES_DB=taiga
       - POSTGRES_HOST=postgres
       - REDIS_HOST=redis
