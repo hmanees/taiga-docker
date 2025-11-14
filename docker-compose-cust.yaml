@@ -32,20 +32,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-  nginx:
-    image: nginx:alpine
-    container_name: taiga-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - taiga-back
-      - taiga-front
-    networks:
-      - coolify
 
   taiga-back:
     image: taigaio/taiga-back:latest
@@ -86,19 +72,24 @@ services:
     depends_on:
       - taiga-back
     environment:
-      - TAIGA_SECRET_KEY=k2jptq=mpxa@*h10)*0g5xeo7ikc#&^pqfn7$nz8h5%4493v$i
-      - TAIGA_SITES_SCHEME=https
-      - TAIGA_SITES_DOMAIN=work.techsed.com
       - TAIGA_HOST=taiga-back
     networks:
       - coolify
+    # PORT EXPOSE MAT KAREIN - Nginx handle karega
+
+  nginx:
+    image: nginx:alpine
+    container_name: taiga-nginx
+    restart: unless-stopped
     ports:
-      - "3000:80"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - taiga-back
+      - taiga-front
+    networks:
+      - coolify
 
 volumes:
   postgres_data:
