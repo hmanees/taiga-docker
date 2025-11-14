@@ -59,11 +59,10 @@ services:
       - taiga_static_data:/taiga/static
     networks:
       - coolify
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.taiga-back.rule=Host(`work.techsed.com`) && PathPrefix(`/api`, `/events`, `/static`, `/media`)"
+      - "traefik.http.services.taiga-back.loadbalancer.server.port=8000"
 
   taiga-front:
     image: taigaio/taiga-front:latest
@@ -75,21 +74,12 @@ services:
       - TAIGA_HOST=taiga-back
     networks:
       - coolify
-    # PORT EXPOSE MAT KAREIN - Nginx handle karega
-
-  nginx:
-    image: nginx:alpine
-    container_name: taiga-nginx
-    restart: unless-stopped
     ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - taiga-back
-      - taiga-front
-    networks:
-      - coolify
+      - "3000:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.taiga-front.rule=Host(`work.techsed.com`)"
+      - "traefik.http.services.taiga-front.loadbalancer.server.port=80"
 
 volumes:
   postgres_data:
