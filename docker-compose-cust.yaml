@@ -59,6 +59,13 @@ services:
       - taiga_static_data:/taiga/static
     networks:
       - coolify
+    ports:
+      - "8000:8000"  # ADD THIS LINE
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.taiga-back.rule=Host(`work.techsed.com`) && PathPrefix(`/api`, `/events`, `/static`, `/media`)"
