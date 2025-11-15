@@ -67,10 +67,14 @@ services:
       timeout: 10s
       retries: 3
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.taiga-back.rule=Host(`work.techsed.com`) && PathPrefix(`/api`, `/events`, `/static`, `/media`)"
-      - "traefik.http.services.taiga-back.loadbalancer.server.port=8000"
-
+       - "traefik.enable=true"
+       - "traefik.http.routers.taiga-back.rule=Host(`work.techsed.com`) && PathPrefix(`/api`, `/events`, `/static`, `/media`)"
+       - "traefik.http.services.taiga-back.loadbalancer.server.port=8000"
+       - "traefik.http.routers.taiga-back.entrypoints=websecure"
+       - "traefik.http.routers.taiga-back.tls=true"
+    # WebSocket support
+       - "traefik.http.routers.taiga-back.middlewares=websocket-headers"
+       - "traefik.http.middlewares.websocket-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
   taiga-front:
     image: taigaio/taiga-front:latest
     container_name: taiga-front
