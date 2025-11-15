@@ -82,7 +82,9 @@ services:
     depends_on:
       - taiga-back
     environment:
-      - TAIGA_HOST=taiga-back
+      - TAIGA_HOST=work.techsed.com
+      - TAIGA_SCHEME=https
+      - TAIGA_WS_SCHEME=wss
     networks:
       - coolify
     ports:
