@@ -14,30 +14,32 @@ x-environment:
   # These environment variables will be used by taiga-back and taiga-async.
   # Database settings
   POSTGRES_DB: "taiga_production"
-  POSTGRES_USER: "${POSTGRES_USER}"
-  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+  POSTGRES_USER: "${POSTGRES_USER:taiga}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:taiga}"
   POSTGRES_HOST: "taiga-db"
   # Taiga settings
-  TAIGA_SECRET_KEY: "${SECRET_KEY}"
-  TAIGA_SITES_SCHEME: "${TAIGA_SCHEME}"
-  TAIGA_SITES_DOMAIN: "${TAIGA_DOMAIN}"
-  TAIGA_SUBPATH: "${SUBPATH}"
+  TAIGA_SECRET_KEY: "${SECRET_KEY:change-me-to-secure-key}"
+  TAIGA_SITES_SCHEME: "${TAIGA_SCHEME:https}"
+  TAIGA_SITES_DOMAIN: "${TAIGA_DOMAIN:localhost}"
+  TAIGA_SUBPATH: "${SUBPATH:}"
   # Email settings.
-  EMAIL_BACKEND: "django.core.mail.backends.${EMAIL_BACKEND}.EmailBackend"
-  DEFAULT_FROM_EMAIL: "${EMAIL_DEFAULT_FROM}"
-  EMAIL_USE_TLS: "${EMAIL_USE_TLS}"
-  EMAIL_USE_SSL: "${EMAIL_USE_SSL}"
-  EMAIL_HOST: "${EMAIL_HOST}"
-  EMAIL_PORT: "${EMAIL_PORT}"
-  EMAIL_HOST_USER: "${EMAIL_HOST_USER}"
-  EMAIL_HOST_PASSWORD: "${EMAIL_HOST_PASSWORD}"
+  EMAIL_BACKEND: "django.core.mail.backends.${EMAIL_BACKEND:console}.EmailBackend"
+  DEFAULT_FROM_EMAIL: "${EMAIL_DEFAULT_FROM:noreply@example.com}"
+  EMAIL_USE_TLS: "${EMAIL_USE_TLS:True}"
+  EMAIL_USE_SSL: "${EMAIL_USE_SSL:False}"
+  EMAIL_HOST: "${EMAIL_HOST:smtp.example.com}"
+  EMAIL_PORT: "${EMAIL_PORT:587}"
+  EMAIL_HOST_USER: "${EMAIL_HOST_USER:user}"
+  EMAIL_HOST_PASSWORD: "${EMAIL_HOST_PASSWORD:password}"
   # Rabbitmq settings
-  RABBITMQ_USER: "${RABBITMQ_USER}"
-  RABBITMQ_PASS: "${RABBITMQ_PASS}"
+  RABBITMQ_USER: "${RABBITMQ_USER:taiga}"
+  RABBITMQ_PASS: "${RABBITMQ_PASS:taiga}"
+  RABBITMQ_VHOST: "${RABBITMQ_VHOST:taiga}"
+  RABBITMQ_ERLANG_COOKIE: "${RABBITMQ_ERLANG_COOKIE:secret-erlang-cookie}"
   # Telemetry settings
-  ENABLE_TELEMETRY: "${ENABLE_TELEMETRY}"
+  ENABLE_TELEMETRY: "${ENABLE_TELEMETRY:True}"
   # Attachments
-  MAX_AGE: "${ATTACHMENTS_MAX_AGE}"
+  MAX_AGE: "${ATTACHMENTS_MAX_AGE:360}"
 
 x-volumes:
   &default-back-volumes
@@ -165,9 +167,9 @@ services:
     container_name: taiga-front-prod
     restart: unless-stopped
     environment:
-      TAIGA_URL: "${TAIGA_SCHEME}://${TAIGA_DOMAIN}"
-      TAIGA_WEBSOCKETS_URL: "${WEBSOCKETS_SCHEME}://${TAIGA_DOMAIN}"
-      TAIGA_SUBPATH: "${SUBPATH}"
+      TAIGA_URL: "${TAIGA_SCHEME:https}://${TAIGA_DOMAIN:localhost}"
+      TAIGA_WEBSOCKETS_URL: "${WEBSOCKETS_SCHEME:wss}://${TAIGA_DOMAIN:localhost}"
+      TAIGA_SUBPATH: "${SUBPATH:}"
     networks:
       - taiga-network
     healthcheck:
@@ -190,9 +192,9 @@ services:
     container_name: taiga-events-prod
     restart: unless-stopped
     environment:
-      RABBITMQ_USER: "${RABBITMQ_USER}"
-      RABBITMQ_PASS: "${RABBITMQ_PASS}"
-      TAIGA_SECRET_KEY: "${SECRET_KEY}"
+      RABBITMQ_USER: "${RABBITMQ_USER:taiga}"
+      RABBITMQ_PASS: "${RABBITMQ_PASS:taiga}"
+      TAIGA_SECRET_KEY: "${SECRET_KEY:change-me-to-secure-key}"
     networks:
       - taiga-network
     depends_on:
@@ -247,8 +249,8 @@ services:
     container_name: taiga-protected-prod
     restart: unless-stopped
     environment:
-      MAX_AGE: "${ATTACHMENTS_MAX_AGE}"
-      SECRET_KEY: "${SECRET_KEY}"
+      MAX_AGE: "${ATTACHMENTS_MAX_AGE:360}"
+      SECRET_KEY: "${SECRET_KEY:change-me-to-secure-key}"
     networks:
       - taiga-network
     healthcheck:
