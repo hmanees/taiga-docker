@@ -1,0 +1,106 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:13
+    container_name: taiga-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: taiga123
+      POSTGRES_DB: taiga
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taiga -d taiga"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: taiga-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  taiga-back:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-back
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - TAIGA_SECRET_KEY=k2jptq=mpxa@*h10)*0g5xeo7ikc#&^pqfn7$nz8h5%4493v$i
+      - TAIGA_SITES_SCHEME=https
+      - TAIGA_SITES_DOMAIN=v2.oppwatch.com
+       # API URL 
+      - TAIGA_URL=
+      - POSTGRES_USER=taiga
+      - POSTGRES_PASSWORD=taiga123
+      - POSTGRES_DB=taiga
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - taiga_media_data:/taiga/media
+      - taiga_static_data:/taiga/static
+    networks:
+      - coolify
+    ports:
+      - "8000:8000"  # ADD THIS LINE
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+       - "traefik.enable=true"
+       - "traefik.http.routers.taiga-back.rule=Host(`v2.oppwatch.com`)"
+       - "traefik.http.services.taiga-back.loadbalancer.server.port=8000"
+       - "traefik.http.routers.taiga-back.entrypoints=websecure"
+       - "traefik.http.routers.taiga-back.tls=true"
+    # WebSocket support
+       - "traefik.http.routers.taiga-back.middlewares=websocket-headers"
+       - "traefik.http.middlewares.websocket-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+  taiga-front:
+    image: taigaio/taiga-front:latest
+    container_name: taiga-front
+    restart: unless-stopped
+    depends_on:
+      - taiga-back
+    environment:
+      - TAIGA_HOST=
+      - TAIGA_SCHEME=https
+      - TAIGA_WS_SCHEME=wss
+    networks:
+      - coolify
+    ports:
+      - "3000:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.taiga-front.rule=Host(`v2.oppwatch.com`)"
+
+volumes:
+  postgres_data:
+  redis_data:
+  taiga_media_data:
+  taiga_static_data:
+
+networks:
+  coolify:
+    external: true
