@@ -1,0 +1,329 @@
+version: "3.5"
+
+# ============================================================================
+# TAIGA DOCKER COMPOSE - PRODUCTION (COOLIFY v4.0)
+# ============================================================================
+# Environment: srv2 (108.171.195.235)
+# Domain: v2.oppwatch.com
+# Orchestrator: Coolify
+# Created: 2025-11-16
+# ============================================================================
+
+x-environment:
+  &default-back-environment
+  # These environment variables will be used by taiga-back and taiga-async.
+  # Database settings
+  POSTGRES_DB: "taiga_production"
+  POSTGRES_USER: "${POSTGRES_USER}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+  POSTGRES_HOST: "taiga-db"
+  # Taiga settings
+  TAIGA_SECRET_KEY: "${SECRET_KEY}"
+  TAIGA_SITES_SCHEME: "${TAIGA_SCHEME}"
+  TAIGA_SITES_DOMAIN: "${TAIGA_DOMAIN}"
+  TAIGA_SUBPATH: "${SUBPATH}"
+  # Email settings.
+  EMAIL_BACKEND: "django.core.mail.backends.${EMAIL_BACKEND}.EmailBackend"
+  DEFAULT_FROM_EMAIL: "${EMAIL_DEFAULT_FROM}"
+  EMAIL_USE_TLS: "${EMAIL_USE_TLS}"
+  EMAIL_USE_SSL: "${EMAIL_USE_SSL}"
+  EMAIL_HOST: "${EMAIL_HOST}"
+  EMAIL_PORT: "${EMAIL_PORT}"
+  EMAIL_HOST_USER: "${EMAIL_HOST_USER}"
+  EMAIL_HOST_PASSWORD: "${EMAIL_HOST_PASSWORD}"
+  # Rabbitmq settings
+  RABBITMQ_USER: "${RABBITMQ_USER}"
+  RABBITMQ_PASS: "${RABBITMQ_PASS}"
+  # Telemetry settings
+  ENABLE_TELEMETRY: "${ENABLE_TELEMETRY}"
+  # Attachments
+  MAX_AGE: "${ATTACHMENTS_MAX_AGE}"
+
+x-volumes:
+  &default-back-volumes
+  # These volumes will be used by taiga-back and taiga-async.
+  - taiga-static-data:/taiga-back/static
+  - taiga-media-data:/taiga-back/media
+
+services:
+  # ============================================================================
+  # DATABASE SERVICE
+  # ============================================================================
+  taiga-db:
+    image: postgres:12.3
+    container_name: taiga-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "taiga_production"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    volumes:
+      - taiga-db-data:/var/lib/postgresql/data
+    networks:
+      - taiga-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # ============================================================================
+  # BACKEND API SERVICE
+  # ============================================================================
+  taiga-back:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-back-prod
+    restart: unless-stopped
+    environment: *default-back-environment
+    volumes: *default-back-volumes
+    networks:
+      - taiga-network
+    depends_on:
+      taiga-db:
+        condition: service_healthy
+      taiga-events-rabbitmq:
+        condition: service_started
+      taiga-async-rabbitmq:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/auth/profile/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # ============================================================================
+  # ASYNC TASKS SERVICE (Background jobs)
+  # ============================================================================
+  taiga-async:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-async-prod
+    restart: unless-stopped
+    entrypoint: ["/taiga-back/docker/async_entrypoint.sh"]
+    environment: *default-back-environment
+    volumes: *default-back-volumes
+    networks:
+      - taiga-network
+    depends_on:
+      taiga-db:
+        condition: service_healthy
+      taiga-events-rabbitmq:
+        condition: service_started
+      taiga-async-rabbitmq:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # ============================================================================
+  # RABBITMQ FOR ASYNC TASKS
+  # ============================================================================
+  taiga-async-rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    container_name: taiga-async-rmq-prod
+    restart: unless-stopped
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "${RABBITMQ_ERLANG_COOKIE}"
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS}"
+      RABBITMQ_DEFAULT_VHOST: "${RABBITMQ_VHOST}"
+    hostname: "taiga-async-rabbitmq"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - taiga-async-rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - taiga-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  # ============================================================================
+  # FRONTEND SERVICE
+  # ============================================================================
+  taiga-front:
+    image: taigaio/taiga-front:latest
+    container_name: taiga-front-prod
+    restart: unless-stopped
+    environment:
+      TAIGA_URL: "${TAIGA_SCHEME}://${TAIGA_DOMAIN}"
+      TAIGA_WEBSOCKETS_URL: "${WEBSOCKETS_SCHEME}://${TAIGA_DOMAIN}"
+      TAIGA_SUBPATH: "${SUBPATH}"
+    networks:
+      - taiga-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  # ============================================================================
+  # EVENTS SERVICE (WebSocket/Real-time)
+  # ============================================================================
+  taiga-events:
+    image: taigaio/taiga-events:latest
+    container_name: taiga-events-prod
+    restart: unless-stopped
+    environment:
+      RABBITMQ_USER: "${RABBITMQ_USER}"
+      RABBITMQ_PASS: "${RABBITMQ_PASS}"
+      TAIGA_SECRET_KEY: "${SECRET_KEY}"
+    networks:
+      - taiga-network
+    depends_on:
+      taiga-events-rabbitmq:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/events"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  # ============================================================================
+  # RABBITMQ FOR EVENTS
+  # ============================================================================
+  taiga-events-rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    container_name: taiga-events-rmq-prod
+    restart: unless-stopped
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "${RABBITMQ_ERLANG_COOKIE}"
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS}"
+      RABBITMQ_DEFAULT_VHOST: "${RABBITMQ_VHOST}"
+    hostname: "taiga-events-rabbitmq"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - taiga-events-rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - taiga-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  # ============================================================================
+  # PROTECTED MEDIA SERVICE
+  # ============================================================================
+  taiga-protected:
+    image: taigaio/taiga-protected:latest
+    container_name: taiga-protected-prod
+    restart: unless-stopped
+    environment:
+      MAX_AGE: "${ATTACHMENTS_MAX_AGE}"
+      SECRET_KEY: "${SECRET_KEY}"
+    networks:
+      - taiga-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  # ============================================================================
+  # NGINX GATEWAY SERVICE
+  # ============================================================================
+  # NOTE: For Coolify integration:
+  # - This gateway is NOT exposed on host ports
+  # - Coolify's reverse proxy routes to this container internally
+  # - Container listens on port 80 within the taiga-network
+  # - Coolify handles SSL/TLS termination
+  # ============================================================================
+  taiga-gateway:
+    image: nginx:1.19-alpine
+    container_name: taiga-gateway-prod
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ./taiga-gateway/taiga.conf:/etc/nginx/conf.d/default.conf:ro
+      - taiga-static-data:/taiga/static:ro
+      - taiga-media-data:/taiga/media:ro
+    networks:
+      - taiga-network
+    depends_on:
+      taiga-front:
+        condition: service_started
+      taiga-back:
+        condition: service_healthy
+      taiga-events:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+volumes:
+  taiga-static-data:
+    driver: local
+  taiga-media-data:
+    driver: local
+  taiga-db-data:
+    driver: local
+  taiga-async-rabbitmq-data:
+    driver: local
+  taiga-events-rabbitmq-data:
+    driver: local
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  taiga-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
